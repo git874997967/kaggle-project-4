@@ -6,7 +6,8 @@ library(MASS)
 library(readr)
 library(rpart)
 library(rpart.plot)
-library(ranger)
+# library(ranger)
+library(speedglm)
 train = read.csv("train.csv")
 test = read.csv("test.csv")
 #sample=read.csv("sampleSubmission.csv")
@@ -64,7 +65,7 @@ data$loc = as.factor(paste(round(data$X, 2), round(data$Y, 2), sep = " "))
 # 行数与源数据相同，并将源数据的类别变量赋值到response的新列cat列，且将这39个类变成response的39个新列，
 # 每一列列名为类名，与列名相同的那一行，将该行赋值为1。以下展示部分response数据框的数据：
 
-
+#logistic回归是分析因变量取某个值的概率与自变量的关系
 # set.seed(123)
 train = data[data$Id == -1, ]
 # nrow(train)
@@ -76,20 +77,22 @@ logistic_regression= function(train, test) {
     data.frame(cat = train$Category)#将犯罪类型作为response数据框的第一列
   crime= as.character(unique(train$Category))# 去重犯罪类型
   crime= sort(crime)#排序
-  for (i in crime) {
-    #这个循环的目的是将多分类问题转为二分类问题，即将每一个类别作为一列，类名就是列名。
-    response[, i]= 0 #初始化每一类的值为0
-    response[which(response$cat == i), i]=1#将属于某类的那行的值重新赋值为1，这样每一列的类别与列名相同的值为1，否则为0，这样就转换成了二分类问题，每一列都是一个二分类问题。
-    fit=
-      glm(
-        response[, i] ~ PdDistrict + DayOfWeek + year + month + hour +freq+ X:Y,
-        data = train,
-        family = binomial
-      )#防止属于同一纬度类别过多，所以用x:y
-    pre= predict(fit, test, type = "response")#type为response表示类别的概率。
-    submission[, i]= pre
-  }
-  return(submission)
+    for (i in crime) {
+      #这个循环的目的是将多分类问题转为二分类问题，即将每一个类别作为一列，类名就是列名。
+      response[, i]= 0 #初始化每一类的值为0
+      
+      response[which(response$cat == i), i]=1#将属于某类的那行的值重新赋值为1，这样每一列的类别与列名相同的值为1，否则为0，这样就转换成了二分类问题，每一列都是一个二分类问题。
+       fit=
+         speedglm (
+          response[, i] ~ PdDistrict  + DayOfWeek + year + month + hour +freq+loc,
+         data = train,
+          family = binomial(link = "logit")
+        )#防止属于同一纬度类别过多，所以用x:y
+      pre= predict(fit, test, type = "response")#type为response表示类别的概率。
+      submission[, i]= 1
+    }
+   return(submission)
 }
 submission_final= logistic_regression(train, test)
+View(submission_final)
 write(submission_final,"sub1.csv")
